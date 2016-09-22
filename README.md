@@ -1,2 +1,6 @@
 # cppstddb
-A reference implementation for a modern C++ client interface
+A reference implementation for a modern C++ database client interface
+
+Code check-in coming soon
+
+
