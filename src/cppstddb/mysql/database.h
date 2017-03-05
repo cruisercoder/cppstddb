@@ -5,6 +5,7 @@
 #include <cppstddb/util.h>
 #include <vector>
 #include <mysql/mysql.h>
+#include <cstring>
 
 namespace cppstddb { namespace mysql {
 
