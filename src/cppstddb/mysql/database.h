@@ -3,8 +3,11 @@
 
 #include <cppstddb/front.h>
 #include <cppstddb/util.h>
-#include <vector>
+
 #include <mysql/mysql.h>
+
+#include <vector>
+#include <cstring>
 
 namespace cppstddb { namespace mysql {
 
@@ -34,7 +37,7 @@ namespace cppstddb { namespace mysql {
             typedef P policy_type;
 
             static bool is_error(int ret) {
-                return 
+                return
                     !(ret == 0 ||
                             ret == MYSQL_NO_DATA ||
                             ret == MYSQL_DATA_TRUNCATED);
