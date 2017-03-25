@@ -3,7 +3,7 @@ A reference implementation for a modern C++ database client interface.
 
 ### Status
 This is an early stage project and it needs a lot of work before it is ready for
-serious use. Only the Mysql driver is present, but more will appear shortly.
+serious use. basic support for mysql, postgres, sqlite. More soon.
 
 ### Planned Design Highlights (WIP)
 - A database and driver neutral interface specification

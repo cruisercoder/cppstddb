@@ -1,0 +1,19 @@
+cflags=-std=c++1y -stdlib=libc++ -O3 -fcolor-diagnostics
+ldflags=-lpthread -lpq -lpgtypes
+
+rule compile
+  depfile = $out.dep
+  command = clang++ -MMD -MF $out.dep $cflags -c $in -o $out -I../../src
+
+rule link 
+  command = clang++ $ldflags $in -o $out
+
+rule run
+  command = ./$in
+
+build postgres_test.o: compile postgres_test.cpp
+build postgres_test: link postgres_test.o
+build test: run postgres_test
+
+default test
+

@@ -1,5 +1,5 @@
-#ifndef H_FRONT
-#define H_FRONT
+#ifndef CPPSTDDB_FRONT_H
+#define CPPSTDDB_FRONT_H
 #include <string>
 #include <experimental/string_view>
 #include <memory>
@@ -7,11 +7,14 @@
 #include "log.h"
 #include "database_error.h"
 #include <iostream>
+#include <cppstddb/util.h>
+#include <cppstddb/date.h>
 
 
 namespace cppstddb { namespace front {
 
     enum value_type {
+        value_undef,
         value_int,
         value_string,
         value_date,
@@ -29,6 +32,15 @@ namespace cppstddb { namespace front {
     template<class D, class P> class row;
     template<class D, class P> class field;
 
+
+    template<typename T>
+        void raise_error(const std::string& msg, const T& t) {
+            std::stringstream s;
+            s << msg << ": " << t;
+            throw database_error(s.str());
+        }
+
+
     template<class D, class P> class basic_database {
         public:
             using driver_type = D;
@@ -39,18 +51,36 @@ namespace cppstddb { namespace front {
             using connection_t = connection<driver_type,policy_type>;
             using rowset_t = rowset<driver_type,policy_type>;
 
+            struct data_t {
+                database_type db;
+                string uri;
+                data_t() {}
+                data_t(const string& uri_):uri(uri_) {}
+            };
+
             //private:
-            using shared_ptr_type = std::shared_ptr<database_type>;
+            using shared_ptr_type = std::shared_ptr<data_t>;
             shared_ptr_type data_;
 
         public:
             basic_database():
-                data_(std::make_shared<database_type>()) {
+                data_(std::make_shared<data_t>()) {
                 }
 
+            basic_database(const string& uri):
+                data_(std::make_shared<data_t>(uri)) {
+                }
+
+            auto uri() const {return data_->uri;}
+
             auto connection() {return connection_t(*this,false);}
+            auto connection(const string& uri) {return connection_t(*this,uri,false);}
             auto create_connection() {return connection_t(*this,true);}
             auto statement(const string &sql) {return connection().statement(sql);}
+
+            auto query(const string& sql) {
+                return statement(sql).query();
+            }
     };
 
     template<class D, class P> class connection {
@@ -65,16 +95,35 @@ namespace cppstddb { namespace front {
             //private:
             using shared_ptr_type = std::shared_ptr<connection_type>;
             database_t database_;
-            shared_ptr_type data_;
+            shared_ptr_type data_; // data_ -> ptr?
 
         public:
             connection(database_t& database, bool create):
                 database_(database),
-                data_(std::make_shared<connection_type>()) {
+                data_(std::make_shared<connection_type>(database_.data_->db, get_source(database_))) {
+                }
+
+            connection(database_t& database, const string& uri, bool create):
+                database_(database),
+                data_(std::make_shared<connection_type>(database_.data_->db, get_source(database_, uri))) {
                 }
 
             auto statement(const string &sql) {return statement_t(*this,sql);}
             auto database() {return database_;}
+
+            auto query(const string& sql) {
+                return statement(sql).query();
+            }
+
+        private:
+
+            static source get_source(const database_t& db) {
+                return uri_to_source(db.uri());
+            }
+
+            static source get_source(const database_t& db, const string& uri) {
+                return uri_to_source(uri.empty() ? db.uri() : uri);
+            }
 
     };
 
@@ -176,7 +225,7 @@ namespace cppstddb { namespace front {
             bool next() {
                 DB_TRACE("next: " << row_idx_ << ":" << rows_fetched_);
                 if (++row_idx_ == rows_fetched_) {
-                    rows_fetched_ = data_->fetch();
+                    rows_fetched_ = data_->next();
                     if (!rows_fetched_) return false;
                     row_idx_ = 0;
                 }
@@ -362,7 +411,7 @@ namespace cppstddb { namespace front {
 
             auto& rowset() const {return *row_.rows_.data_;}
 
-            auto type() {return cell_.bind.type;}
+            auto type() const {return cell_.bind_.type;}
 
             template<class T> T as() const {
                 T value;
@@ -376,7 +425,14 @@ namespace cppstddb { namespace front {
             friend inline std::ostream& operator<<(std::ostream &os, const field& f) {
                 //os << "hello"; // problem at -O3
                 // improve
-                os << f.as<string>();
+
+                switch(f.type()) {
+                    case value_int: os << f.as<int>(); break;
+                    case value_string: os << f.as<string>(); break;
+                    case value_date: os << f.as<date>(); break;
+                    default: raise_error("unsupported type", f.type());
+                }
+                //os << f.as<string>();
                 return os;
             }
 

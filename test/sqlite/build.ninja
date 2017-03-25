@@ -1,0 +1,19 @@
+cflags=-std=c++1y -stdlib=libc++ -O3 -fcolor-diagnostics
+ldflags=-lpthread -lsqlite3
+
+rule compile
+  depfile = $out.dep
+  command = clang++ -MMD -MF $out.dep $cflags -c $in -o $out -I../../src
+
+rule link 
+  command = clang++ $ldflags $in -o $out
+
+rule run
+  command = ./$in
+
+build sqlite_test.o: compile sqlite_test.cpp
+build sqlite_test: link sqlite_test.o
+build test: run sqlite_test
+
+default test
+
