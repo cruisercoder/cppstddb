@@ -1,5 +1,5 @@
-#ifndef H_CPPSTDDB_LOG
-#define H_CPPSTDDB_LOG
+#ifndef CPPSTDDB_LOG_H
+#define CPPSTDDB_LOG_H
 
 #include <ostream>
 #include <fstream>

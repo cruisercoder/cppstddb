@@ -5,19 +5,12 @@
 using namespace std;
 
 int main() {
-    try {
-        string uri = "postgres://localhost/test?username=test&password=test";
-
-        //auto db = cppstddb::postgres::database(uri);
-        //cppstddb::create_score_table(db);
-
-        //cppstddb::simple_test<cppstddb::postgres::database>(uri);
-        cppstddb::test_all<cppstddb::postgres::database>(uri);
-
-
-    } catch (exception &e) {
-        cout << "exception: " << e.what() << endl;
-    }
-    return 0;
+	try {
+		using namespace cppstddb;
+		test_all<postgres::database>(test_uri("postgres"));
+	} catch (exception &e) {
+		cout << "exception: " << e.what() << endl;
+	}
+	return 0;
 }
 

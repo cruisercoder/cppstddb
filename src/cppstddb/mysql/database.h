@@ -1,5 +1,5 @@
-#ifndef H_MYSQL_DATABASE
-#define H_MYSQL_DATABASE
+#ifndef CPPSTDDB_DATABASE_MYSQL_H
+#define CPPSTDDB_DATABASE_MYSQL_H
 
 #include <cppstddb/front.h>
 #include <cppstddb/util.h>
@@ -9,57 +9,75 @@
 
 namespace cppstddb { namespace mysql {
 
-    using namespace front;
+    namespace impl {
 
-    template<class P> class driver {
-        using string = std::string;
-        using cell_t = cell<driver,P>;
+        template<class P> class database;
+        template<class P> class connection;
+        template<class P> class statement;
+        template<class P> class rowset;
+        template<class P> class bind_type;
+        template<class P,class T> class field;
 
-        public:
-        typedef P policy_type;
+        template<class P> using cell_t = cppstddb::front::cell<database<P>>;
 
-        static bool is_error(int ret) {
+        bool is_error(int ret) {
             return 
                 !(ret == 0 ||
                         ret == MYSQL_NO_DATA ||
                         ret == MYSQL_DATA_TRUNCATED);
         }
 
-        template<class T> static T* check(const std::string &msg, T* ptr) {
+        template<class S> void raise_error(const S& msg) {
+            throw database_error(msg);
+        }
+
+        template<class S> void raise_error(const S& msg, int ret) {
+            throw database_error(msg, ret);
+        }
+
+        template<class S> void raise_error(const S& msg, MYSQL_STMT* stmt, int ret) {
+            throw database_error(msg, ret, mysql_stmt_error(stmt));
+        }
+
+        template<class S> void check(const S& msg) {
+            DB_TRACE(msg);
+        }
+
+        template<class S, class T> T* check(const S& msg, T* ptr) {
             DB_TRACE(msg << ": " << static_cast<void*>(ptr));
             if (!ptr) raise_error(msg);
             return ptr;
         }
 
-        static int check(const string& msg, MYSQL_STMT* stmt, int ret) {
+        template<class S> int check(const S& msg, MYSQL_STMT* stmt, int ret) {
             DB_TRACE(msg << ":" << ret);
             if (is_error(ret)) raise_error(msg,stmt,ret);
             return ret;
         }
 
-        static void raise_error(const string& msg) {
-            throw database_error(msg);
-        }
-
-        static void raise_error(const string& msg, int ret) {
-            throw database_error(msg, ret);
-        }
-
-        static void raise_error(const string& msg, MYSQL_STMT* stmt, int ret) {
-            throw database_error(msg, ret, mysql_stmt_error(stmt));
-        }
-
-        class database {
+        template<class P> class database {
             public:
+                using policy_type = P;
+                using string = typename policy_type::string;
+                using connection = connection<policy_type>;
+                using statement = statement<policy_type>;
+                using rowset = rowset<policy_type>;
+                using bind_type = bind_type<policy_type>;
+                template<typename T> using field_type = field<policy_type,T>;
+
                 database() {
                     DB_TRACE("mysql client info: " << mysql_get_client_info());
                 }
                 ~database() {
                 }
+
+                string date_column_type() const {return "date";}
         };
 
-        class connection {
+        template<class P> class connection {
             public:
+                using policy_type = P;
+                using database = database<policy_type>;
                 MYSQL *mysql;
             public:
                 database& db;
@@ -90,8 +108,12 @@ namespace cppstddb { namespace mysql {
 
         };
 
-        class statement {
+        template<class P> class statement {
             public:
+                using policy_type = P;
+                using string = typename policy_type::string;
+                using connection = connection<policy_type>;
+                using rowset = rowset<policy_type>;
                 MYSQL_STMT *stmt;
                 string sql;
                 int binds;
@@ -123,34 +145,105 @@ namespace cppstddb { namespace mysql {
 
         };
 
-        struct describe_type {
+        template<class P> struct describe_type {
+            using policy_type = P;
+            using string = typename policy_type::string;
             int index;
             string name;
             MYSQL_FIELD *field;
         };
 
-        struct bind_type {
+        template<class P> struct bind_type {
             value_type type;
             int mysql_type;
-            int allocSize;
+            int alloc_size;
             void* data;
             unsigned long length; // check type
             my_bool is_null;
             my_bool error;
         };
 
-        class rowset {
+        template<class P> struct bind_context {
+            using bind_type = bind_type<P>;
+            using describe_type = describe_type<P>;
+            bind_context(const describe_type& describe_, bind_type& bind_):
+                row_array_size(1),describe(describe_),bind(bind_) {}
+            int row_array_size;
+            const describe_type& describe;
+            bind_type& bind;
+        };
+
+        template<class P> struct bind_info {
+            using bind_context = bind_context<P>;
+            static const bind_info info[];
+            int mysql_type;
+            void (*bind)(bind_context& ctx);
+        };
+
+        template<class P> void binder(bind_context<P>& ctx) {
+            auto type = ctx.describe.field->type;
+            const bind_info<P> *info = &bind_info<P>::info[0];
+            for (auto i = &info[0]; i->mysql_type; ++i){
+                if (i->mysql_type == type) {
+                    i->bind(ctx);
+                    return;
+                }
+            }
+
+            /*
+            std::stringstream s;
+            s << "binder: type not found: " << ctx.describe.field->type;
+            throw database_error(s.str());
+            */
+
+            DB_WARN("type not found, binding to string for now: " << type);
+            bind_string(ctx);
+        }
+
+        template<class P> void bind_long(bind_context<P>& ctx) {
+            ctx.bind.mysql_type = ctx.describe.field->type;
+            ctx.bind.type = value_int;
+            ctx.bind.alloc_size = ctx.describe.field->length; // ???
+        }
+
+        template<class P> void bind_date(bind_context<P>& ctx) {
+            ctx.bind.mysql_type = ctx.describe.field->type;
+            ctx.bind.type = value_date;
+            ctx.bind.alloc_size = sizeof(MYSQL_TIME);
+        }
+
+        template<class P> void bind_string(bind_context<P>& ctx) {
+            ctx.bind.mysql_type = ctx.describe.field->type;
+            ctx.bind.type = value_string;
+            ctx.bind.alloc_size = ctx.describe.field->length + 1;
+        }
+
+        template<class P> const bind_info<P> bind_info<P>::info[] = {
+            {MYSQL_TYPE_TINY, bind_long<P>},
+            {MYSQL_TYPE_SHORT, bind_long<P>},
+            {MYSQL_TYPE_LONG, bind_long<P>},
+            {MYSQL_TYPE_LONGLONG, bind_long<P>},
+            {MYSQL_TYPE_DATE, bind_date<P>},
+            // MYSQL_TYPE_DATETIME
+            {MYSQL_TYPE_STRING, bind_string<P>},
+            {0,nullptr}
+        };
+
+        template<class P> class rowset {
             public:
+                using policy_type = P;
+                using cell_t = cell_t<policy_type>;
+                using statement = statement<policy_type>;
+                using bind_type = bind_type<policy_type>;
+                using bind_context = bind_context<policy_type>;
                 statement& stmt;
                 //Allocator *allocator;
                 unsigned int columns;
 
-                //using describe_type = ::describe_type;
-                //using bind_type = ::bind_type;
-
                 MYSQL_RES *result_metadata;
                 int status;
 
+                using describe_type = describe_type<policy_type>;
                 using describe_vector = std::vector<describe_type>;
                 using bind_vector = std::vector<bind_type>;
                 using mysql_bind_vector = std::vector<MYSQL_BIND>;
@@ -180,8 +273,18 @@ namespace cppstddb { namespace mysql {
 
                 ~rowset() {
                     DB_TRACE("~rowset");
+
                     //foreach(b; bind) allocator.deallocate(b.data);
-                    if (result_metadata) mysql_free_result(result_metadata);
+
+                    for(auto&& b : binds) {
+                        //DB_TRACE("free: " << ", data: " << b.data << ", size: " << b.alloc_size);
+                        free(b.data);
+                    }
+
+                    if (result_metadata) {
+                        check("mysql_free_result");
+                        mysql_free_result(result_metadata);
+                    }
                 }
 
                 void build_describe() {
@@ -211,25 +314,13 @@ namespace cppstddb { namespace mysql {
                         binds.push_back(bind_type());
                         auto& b = binds.back();
 
-                        // let in ints for now
+                        bind_context ctx(d,b);
+                        binder(ctx);
 
-                        if (d.field->type == MYSQL_TYPE_LONG) {
-                            b.mysql_type = d.field->type;
-                            b.type = value_int;
-                        } else if (d.field->type == MYSQL_TYPE_DATE) {
-                            b.mysql_type = d.field->type;
-                            b.type = value_date;
-                        } else {
-                            b.mysql_type = MYSQL_TYPE_STRING;
-                            b.type = value_string;
-                        }
+                        //b.data = allocator.allocate(b.alloc_size);
 
-                        //b.mysql_type = MYSQL_TYPE_STRING;
-                        //b.type = value_string;
-
-                        b.allocSize = d.field->length + 1;
-                        //b.data = allocator.allocate(b.allocSize);
-                        b.data = malloc(b.allocSize);
+                        b.data = malloc(b.alloc_size);
+                        //DB_TRACE("malloc: " << i << ", data: " << b.data << ", size: " << b.alloc_size);
                     }
 
                     setup(binds, mysql_binds);
@@ -246,7 +337,7 @@ namespace cppstddb { namespace mysql {
                         memset(&mb, 0, sizeof(MYSQL_BIND)); //header?
                         mb.buffer_type = static_cast<enum_field_types>(b.mysql_type); // fix
                         mb.buffer = b.data;
-                        mb.buffer_length = b.allocSize;
+                        mb.buffer_length = b.alloc_size;
                         mb.length = &b.length;
                         mb.is_null = &b.is_null;
                         mb.error = &b.error;
@@ -275,29 +366,36 @@ namespace cppstddb { namespace mysql {
                 }
 
                 auto name(size_t idx) {
-                   return describes[idx].name;
-                }
-
-                // value getters
-
-                void as(const cell_t& cell, string& value) const {
-                    value.assign(static_cast<const char *>(cell.bind_.data));
-                }
-
-                void as(const cell_t& cell, int& value) const {
-                    value = *static_cast<int*>(cell.bind_.data);
-                }
-
-                void as(const cell_t& cell, date& value) const {
-                    auto& t = *static_cast<MYSQL_TIME*>(cell.bind_.data);
-                    value = date(t.year, t.month, t.day);
+                    return describes[idx].name;
                 }
 
         };
 
-    };
 
-    using database = basic_database<driver<default_policy>,default_policy>;
+        template<class P, typename T> struct field {};
+
+        template<class P> struct field<P,std::string> {
+            static std::string as(const rowset<P>& r, const cell_t<P>& cell) {
+                return static_cast<const char *>(cell.bind_.data);
+            }
+        };
+
+        template<class P> struct field<P,int> {
+            static int as(const rowset<P>& r, const cell_t<P>& cell) {
+                return *static_cast<int*>(cell.bind_.data);
+            }
+        };
+
+        template<class P> struct field<P,date_t> {
+            static date_t as(const rowset<P>& r, const cell_t<P>& cell) {
+                auto& t = *static_cast<MYSQL_TIME*>(cell.bind_.data);
+                return date_t(t.year, t.month, t.day);
+            }
+        };
+
+    }
+
+    using database = cppstddb::front::basic_database<impl::database<default_policy>>;
 
     inline auto create_database() {
         return database();

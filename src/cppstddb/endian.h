@@ -1,5 +1,5 @@
-#ifndef H_ENDIAN
-#define H_ENDIAN
+#ifndef CPPSTDDB_ENDIAN_H
+#define CPPSTDDB_ENDIAN_H
 
 static int big4_to_native(const void *d) {
     // for 4 byte ints

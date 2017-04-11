@@ -64,6 +64,23 @@ namespace cppstddb {
         }
     }
 
+    inline auto get_uri(
+            const std::string& protocol,
+            const std::string& host,
+            const std::string& database,
+            const std::string& username,
+            const std::string& password) {
+        std::stringstream s;
+        s
+            << protocol << "://"
+            << host << "/"
+            << database << "?"
+            << "username=" << username
+            << "&password=" << password;
+        return s.str();
+    }
+
+
     inline source uri_to_source(const std::string& uri) {
         // example: mysql://127.0.0.1";
         source s;

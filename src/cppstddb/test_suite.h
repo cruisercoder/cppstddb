@@ -1,6 +1,7 @@
-#ifndef TEST_SUITE_H
-#define TEST_SUITE_H
+#ifndef CPPSTDDB_TEST_SUITE_H
+#define CPPSTDDB_TEST_SUITE_H
 
+#include <cppstddb/sql_util.h>
 #include <ostream>
 #include <stdexcept>
 #include <numeric>
@@ -11,6 +12,15 @@
  */
 
 namespace cppstddb {
+
+    inline auto test_uri(
+            const std::string& protocol,
+            const std::string& host = "localhost",
+            const std::string& database = "cppstddb",
+            const std::string& username = "test",
+            const std::string& password = "test") {
+        return get_uri(protocol,host,database,username,password);
+    }
 
     inline void assertion(bool b) {
         if (!b) throw std::runtime_error("assertion failed");
@@ -55,6 +65,24 @@ namespace cppstddb {
                 std::cout << row[c] << " ";
             }
             std::cout << "\n";
+        }
+    }
+
+    template<class database> void simple_date_test(const std::string& uri) {
+        test_header("simple_date_test");
+
+        auto db = database(uri);
+        auto rowset = db
+            .statement("select * from score")
+            .query()
+            .rows();
+
+        for(auto&& row : rowset) {
+            auto name = row[0], score = row[1], d = row[2];
+            std::cout
+                << "name: " << name
+                << ",score: " << score
+                << ", date: " << d.template as<date_t>() << "\n";
         }
     }
 
@@ -121,8 +149,14 @@ namespace cppstddb {
     }
 
     template<class database> void test_all(const std::string& uri) {
+        {
+            auto db = database(uri);
+            recreate_score_table(db);
+        }
+
         simple_test<database>(uri);
         simple_classic_test<database>(uri);
+        simple_date_test<database>(uri);
         for_loop_1_test<database>(uri);
         for_loop_2_test<database>(uri);
         iterator_1_test<database>(uri);
@@ -130,35 +164,34 @@ namespace cppstddb {
         stl_accumulate_test<database>(uri);
     }
 
-    template<class database> void drop_table(database& db, const std::string& table) {
-        try {
-            std::string s;
-            s += "drop table ";
-            s += table;
-            db.query(s);
-        } catch (database_error& e) {
-            DB_WARN("drop table error (ignored): " << e.what());
-        }
 
-    }
-
-    template<class database> void create_score_table(database& db, bool data = true) {
+    template<class database> void recreate_score_table(database& db, bool data = true) { //recreate
         auto con = db.connection();
         std::string table = "score";
         const static int sz = 3;
         const char *names[sz] = {"Knuth", "Hopper", "Dijkstra"};
         const int scores[sz] = {62, 48, 84};
+        const char *dates[sz] = {"2016-01-01", "2016-02-02", "2016-03-03"};
+
+        std::stringstream query;
+        query
+            << "create table score (name varchar(10), score integer"
+            << ",d " << db.date_column_type()
+            << ")";
 
         drop_table(db, table);
-        con.query("create table score (name varchar(10), score integer)");
+        con.query(query.str());
 
         if (!data) return;
         for(int i = 0; i != sz; ++i) {
             std::stringstream ss;
             ss
                 << "insert into score values("
-                << "'" << names[i] << "'" 
-                << "," << scores[i] << ")";
+                << "'" << names[i] << "'"  << ","
+                << scores[i]
+                << ",'" << dates[i] << "'"
+                << ")";
+            DB_TRACE(ss.str());
             con.query(ss.str());
         }
     }

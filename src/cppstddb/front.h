@@ -4,15 +4,13 @@
 #include <experimental/string_view>
 #include <memory>
 #include <exception>
-#include "log.h"
+#include <cppstddb/log.h>
 #include "database_error.h"
 #include <iostream>
 #include <cppstddb/util.h>
 #include <cppstddb/date.h>
 
-
-namespace cppstddb { namespace front {
-
+namespace cppstddb {
     enum value_type {
         value_undef,
         value_int,
@@ -22,15 +20,19 @@ namespace cppstddb { namespace front {
     };
 
     class default_policy {
+        public:
+            using string = std::string;
     };
+}
 
+namespace cppstddb { namespace front {
 
-    template<class D, class P> class connection;
-    template<class D, class P> class statement;
-    template<class D, class P> class rowset;
-    template<class D, class P> class rowset_iterator;
-    template<class D, class P> class row;
-    template<class D, class P> class field;
+    template<class D> class connection;
+    template<class D> class statement;
+    template<class D> class rowset;
+    template<class D> class rowset_iterator;
+    template<class D> class row;
+    template<class D> class field;
 
 
     template<typename T>
@@ -41,15 +43,14 @@ namespace cppstddb { namespace front {
         }
 
 
-    template<class D, class P> class basic_database {
+    template<class D> class basic_database {
         public:
-            using driver_type = D;
-            using policy_type = P;
+            using database_type = D;
+            using policy_type = typename database_type::policy_type;
             using string = std::string;
             using string_view = std::experimental::string_view;
-            using database_type = typename driver_type::database;
-            using connection_t = connection<driver_type,policy_type>;
-            using rowset_t = rowset<driver_type,policy_type>;
+            using connection_t = connection<database_type>;
+            using rowset_t = rowset<database_type>;
 
             struct data_t {
                 database_type db;
@@ -71,6 +72,9 @@ namespace cppstddb { namespace front {
                 data_(std::make_shared<data_t>(uri)) {
                 }
 
+            // helpful for testing
+            string date_column_type() const {return data_->db.date_column_type();}
+
             auto uri() const {return data_->uri;}
 
             auto connection() {return connection_t(*this,false);}
@@ -83,14 +87,14 @@ namespace cppstddb { namespace front {
             }
     };
 
-    template<class D, class P> class connection {
+    template<class D> class connection {
         public:
-            using driver_type = D;
-            using policy_type = P;
+            using database_type = D;
+            using policy_type = typename database_type::policy_type;
             using string = std::string;
-            using database_t = basic_database<driver_type,policy_type>;
-            using statement_t = statement<driver_type,policy_type>;
-            using connection_type = typename driver_type::connection;
+            using database_t = basic_database<database_type>;
+            using statement_t = statement<database_type>;
+            using connection_type = typename database_type::connection;
 
             //private:
             using shared_ptr_type = std::shared_ptr<connection_type>;
@@ -127,14 +131,14 @@ namespace cppstddb { namespace front {
 
     };
 
-    template<class D, class P> class statement {
+    template<class D> class statement {
         public:
-            using driver_type = D;
-            using policy_type = P;
+            using database_type = D;
+            using policy_type = typename database_type::policy_type;
             using string = std::string;
-            using connection_t = connection<driver_type,policy_type>;
-            using rowset_t = rowset<driver_type,policy_type>;
-            using statement_type = typename driver_type::statement;
+            using connection_t = connection<database_type>;
+            using rowset_t = rowset<database_type>;
+            using statement_type = typename database_type::statement;
 
             //private:
 
@@ -182,19 +186,17 @@ namespace cppstddb { namespace front {
             auto rows() {return rowset_t(*this,1);}
     };
 
-    template<class D, class P> class rowset {
+    template<class D> class rowset {
         public:
-            using driver_type = D;
-            using policy_type = P;
+            using database_type = D;
+            using policy_type = typename database_type::policy_type;
             using string = std::string;
-            using statement_t = statement<driver_type,policy_type>;
-            //using rowset_t = rowset<driver_type,policy_type>;
-            using row_t = row<driver_type,policy_type>;
-            using rowset_type = typename driver_type::rowset;
-            //alias Row = BasicRow!(Driver,Policy);
+            using statement_t = statement<database_type>;
+            using row_t = row<database_type>;
+            using rowset_type = typename database_type::rowset;
             //alias ColumnSet = BasicColumnSet!(Driver,Policy);
             using shared_ptr = std::shared_ptr<rowset_type>;
-            using iterator = rowset_iterator<driver_type,policy_type>;
+            using iterator = rowset_iterator<database_type>;
 
             //private:
             using shared_ptr_type = std::shared_ptr<rowset_type>;
@@ -299,12 +301,12 @@ namespace cppstddb { namespace front {
     };
 
 
-    template<class D, class P> class rowset_iterator {
+    template<class D> class rowset_iterator {
         public:
-            using driver_type = D;
-            using policy_type = P;
-            using rowset_t = rowset<driver_type,policy_type>;
-            using row_t = row<driver_type,policy_type>;
+            using database_type = D;
+            using policy_type = typename database_type::policy_type;
+            using rowset_t = rowset<database_type>;
+            using row_t = row<database_type>;
 
             typedef std::ptrdiff_t difference_type;
             typedef rowset_t value_type;
@@ -329,14 +331,14 @@ namespace cppstddb { namespace front {
             bool operator!=(const rowset_iterator& rhs) const {return !operator==(rhs);}
     };
 
-    template<class D, class P> struct cell {
+    template<class D> struct cell {
         public:
-            using driver_type = D;
-            using policy_type = P;
+            using database_type = D;
+            using policy_type = typename database_type::policy_type;
             using string = std::string;
-            using rowset_t = rowset<driver_type,policy_type>;
-            using row_t = row<driver_type,policy_type>;
-            using bind_type = typename driver_type::bind_type;
+            using rowset_t = rowset<database_type>;
+            using row_t = row<database_type>;
+            using bind_type = typename database_type::bind_type;
 
             bind_type& bind_;
             int row_idx_;
@@ -351,14 +353,14 @@ namespace cppstddb { namespace front {
             //auto rowIdx() {return rowIdx_;}
     };
 
-    template<class D,class P> class row {
+    template<class D> class row {
         public:
-            using driver_type = D;
-            using policy_type = P;
+            using database_type = D;
+            using policy_type = typename database_type::policy_type;
             using string = std::string;
-            using rowset_t = rowset<driver_type,policy_type>;
-            using cell_t = cell<driver_type,policy_type>;
-            using field_t = field<driver_type,policy_type>;
+            using rowset_t = rowset<database_type>;
+            using cell_t = cell<database_type>;
+            using field_t = field<database_type>;
             //alias Cell = BasicCell!(Driver,Policy);
             ////alias Value = BasicValue!(Driver,Policy);
             //alias Column = BasicColumn!(Driver,Policy);
@@ -370,20 +372,7 @@ namespace cppstddb { namespace front {
 
             auto width() {return rows_.width();}
 
-            /*
-
-               auto into(A...) (ref A args) {
-               rows_.into(args);
-               return this;
-               }
-
-               auto opIndex(Column column) {return opIndex(column.idx);}
-
-            // experimental
-            auto opDispatch(string s)() {
-            return opIndex(rows_.result_.index(s));
-            }
-             */
+            // auto into()
 
             field_t operator[](size_t idx) {
                 // needs work
@@ -394,14 +383,15 @@ namespace cppstddb { namespace front {
     };
 
 
-    template<class D, class P> class field {
+    template<class D> class field {
         public:
-            using driver_type = D;
-            using policy_type = P;
+            using database_type = D;
+            using policy_type = typename database_type::policy_type;
             using string = std::string;
-            using row_t = row<driver_type,policy_type>;
-            using cell_t = cell<driver_type,policy_type>;
-            using bind_type = typename driver_type::bind_type;
+            using row_t = row<database_type>;
+            using cell_t = cell<database_type>;
+            using bind_type = typename database_type::bind_type;
+            template<typename T> using field_type = typename database_type:: template field_type<T>;
 
             row_t& row_; // reference currently, but watch out
             cell_t cell_;
@@ -414,10 +404,7 @@ namespace cppstddb { namespace front {
             auto type() const {return cell_.bind_.type;}
 
             template<class T> T as() const {
-                T value;
-                //r.template as<T>(cell_, value);
-                rowset().as(cell_, value);
-                return value;
+                return field_type<T>::as(rowset(), cell_);
             }
 
             auto str() const {return as<string>();}
@@ -429,43 +416,12 @@ namespace cppstddb { namespace front {
                 switch(f.type()) {
                     case value_int: os << f.as<int>(); break;
                     case value_string: os << f.as<string>(); break;
-                    case value_date: os << f.as<date>(); break;
+                    case value_date: os << f.as<date_t>(); break;
                     default: raise_error("unsupported type", f.type());
                 }
                 //os << f.as<string>();
                 return os;
             }
-
-            /*
-               template<class T=int> auto as<T>() {
-               return rowset.as!T(cell_);
-               }
-             */
-
-            /*
-               auto as(T:int)() {return Converter.convert!T(resultPtr, cell_);}
-               auto as(T:string)() {return Converter.convert!T(resultPtr, cell_);}
-               auto as(T:Date)() {return Converter.convert!T(resultPtr, cell_);}
-               auto as(T:Nullable!T)() {return Nullable!T(as!T);}
-
-            // should be nothrow?
-            auto as(T:Variant)() {return Converter.convert!T(resultPtr, cell_);}
-
-            bool isNull() {return false;} //fix
-
-            string name() {return resultPtr.name(cell_.idx_);}
-
-            auto get(T)() {return Nullable!T(as!T);}
-
-            // experimental
-            auto option(T)() {return Option!T(as!T);}
-
-            // not sure if this does anything
-            const(char)[] chars() {return as!string;}
-
-            string toString() {return as!string;}
-             */
-
 
     };
 

@@ -3,7 +3,7 @@ A reference implementation for a modern C++ database client interface.
 
 ### Status
 This is an early stage project and it needs a lot of work before it is ready for
-serious use. basic support for mysql, postgres, sqlite. More soon.
+serious use. Basic support now exists for mysql, postgres, and sqlite. More soon.
 
 ### Planned Design Highlights (WIP)
 - A database and driver neutral interface specification
@@ -85,8 +85,11 @@ cout << row["name"] << ":" << row["score"] << "\n";
 
 The test suite is a set of templated test cases for use in testing the
 the direct drivers.  Currently, it does not use a test framework just to keep
-the dependency factor low.  It currently uses the ninja build system but
-this depencency may also be removed.
+the dependency factor low and uses ninja as the build tool (subject to change)
+
+The tests are run in a database named 'cppstddb' which must exist in the
+database. Running the test suite does drop and create tables each time is
+is run, so treat with care.
 
 Running the test suite (mysql example):
 

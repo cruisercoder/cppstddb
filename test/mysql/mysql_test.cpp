@@ -6,10 +6,8 @@ using namespace std;
 
 int main() {
     try {
-        string uri = "mysql://localhost/test?username=test&password=test";
-        //auto db = cppstddb::mysql::database(uri);
-        //cppstddb::create_score_table(db);
-        cppstddb::test_all<cppstddb::mysql::database>(uri);
+		using namespace cppstddb;
+        test_all<mysql::database>(test_uri("mysql"));
     } catch (cppstddb::database_error &e) {
         cppstddb::vertical_print(cout, e);
     } catch (exception &e) {

@@ -6,18 +6,9 @@ using namespace std;
 
 int main() {
     try {
+		using namespace cppstddb;
         string uri = "file://testdb.sqlite";
-        //auto db = cppstddb::sqlite::database(uri);
-        //cppstddb::create_score_table(db);
-        cppstddb::test_all<cppstddb::sqlite::database>(uri);
-
-        /*
-        auto db = cppstddb::sqlite::database(uri);
-        //cppstddb::create_score_table(db);
-        auto con = db.connection();
-        auto stmt = con.statement("select 1").query();
-        */
-
+        test_all<sqlite::database>(uri);
     } catch (cppstddb::database_error &e) {
         cppstddb::vertical_print(cout, e);
     } catch (exception &e) {
