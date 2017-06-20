@@ -1,0 +1,20 @@
+cflags=-std=c++1y -stdlib=libc++ -O3 -fcolor-diagnostics
+ldflags=-lpthread -lmysqlclient -locci -lclntsh
+
+rule compile
+  depfile = $out.dep
+  command = clang++ -MMD -MF $out.dep $cflags -c $in -o $out -I../../src
+
+rule link 
+  command = clang++ $ldflags $in -o $out
+
+rule run
+  command = ./$in
+
+build oracle_test.o: compile oracle_test.cpp
+build oracle_test: link oracle_test.o
+build test: run oracle_test
+
+default test
+
+
