@@ -5,6 +5,7 @@
 #include <ostream>
 #include <stdexcept>
 #include <numeric>
+#include <algorithm>
 
 /*
    A really basic test framework & content to start with,

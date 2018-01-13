@@ -5,6 +5,7 @@
 
 #include <ctype.h>
 #include <cassert>
+#include <cstring>
 
 namespace cppstddb {
     namespace impl {
